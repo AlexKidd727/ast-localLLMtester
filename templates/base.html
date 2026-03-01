@@ -1,0 +1,13 @@
+{% extends "bootstrap/base.html" %}
+
+{% block title %}
+    LocalLLMTester
+{% endblock %}
+
+{% block stylesheets %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}

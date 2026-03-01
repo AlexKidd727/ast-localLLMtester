@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalLLMTester</title>
+    <link href="{{ url_for('static', filename='css/bootstrap.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="text-center mt-5">
+            <h1>LocalLLMTester</h1>
+            <p class="lead">Тестирование локальных LLM моделей через LM Studio API</p>
+        </header>
+
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="panel panel-primary">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Выбор модели</h3>
+                    </div>
+                    <div class="panel-body">
+                        <select id="model-select" class="form-control">
+                            <option value="">-- Выберите модель --</option>
+                            {% for model in models %}
+                            <option value="{{ model.id }}">{{ model.id }}</option>
+                            {% endfor %}
+                        </select>
+                        <button onclick="runTest()" class="btn btn-primary btn-block mt-3">Запустить тест</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Результаты тестирования</h3>
+                    </div>
+                    <div class="panel-body">
+                        <table class="table table-striped" id="results-table">
+                            <thead>
+                                <tr>
+                                    <th data-column="model" onclick="sortTable('model')">Модель ⇅</th>
+                                    <th data-column="gen_time" onclick="sortTable('gen_time')">Генерация (с) ⇅</th>
+                                    <th data-column="gen_score" onclick="sortTable('gen_score')">Оценка ⇅</th>
+                                    <th data-column="fix_time" onclick="sortTable('fix_time')">Исправление (с) ⇅</th>
+                                    <th data-column="fix_score" onclick="sortTable('fix_score')">Оценка ⇅</th>
+                                    <th data-column="total_time" onclick="sortTable('total_time')">Общее время (с) ⇅</th>
+                                    <th data-column="status" onclick="sortTable('status')">Статус ⇅</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-body">
+                                {% if results_data %}
+                                {% for model_id, result in results_data.items() %}
+                                <tr>
+                                    <td>{{ model_id }}</td>
+                                    <td>{{ "%.2f"|format(result.tests.generation.elapsed_time) if result.tests.generation else '-' }}</td>
+                                    <td>
+                                        {% if result.tests.generation.evaluation %}
+                                        <span class="label label-{{ 'success' if result.tests.generation.evaluation.score >= 7 else 'warning' if result.tests.generation.evaluation.score >= 5 else 'danger' }}">
+                                            {{ result.tests.generation.evaluation.score }}/10
+                                        </span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ "%.2f"|format(result.tests.fix_error.elapsed_time) if result.tests.fix_error else '-' }}</td>
+                                    <td>
+                                        {% if result.tests.fix_error.evaluation %}
+                                        <span class="label label-{{ 'success' if result.tests.fix_error.evaluation.score >= 7 else 'warning' if result.tests.fix_error.evaluation.score >= 5 else 'danger' }}">
+                                            {{ result.tests.fix_error.evaluation.score }}/10
+                                        </span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ "%.2f"|format(result.tests.generation.elapsed_time + result.tests.fix_error.elapsed_time) if result.tests else '-' }}</td>
+                                    <td>
+                                        {% if result.status == 'completed' %}
+                                        <span class="status-success">✅</span>
+                                        {% elif result.status == 'failed' %}
+                                        <span class="status-failed">❌</span>
+                                        {% endif %}
+                                        {{ result.status }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">Нет результатов. Запустите тест.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="panel panel-info">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">Лог выполнения</h3>
+                    </div>
+                    <div class="panel-body">
+                        <pre id="log-content" class="log-container">Ожидание запуска теста...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for evaluation comments -->
+    <div id="evalModal" class="modal" style="display:none;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" onclick="closeEvalModal()">&times;</button>
+                    <h4 class="modal-title">Оценка LLM</h4>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Модель:</strong> <span id="modalModel"></span></p>
+                    <p><strong>Тип теста:</strong> <span id="modalTestType"></span></p>
+                    <p><strong>Оценка:</strong> <span id="modalScore"></span></p>
+                    <p><strong>Ошибки:</strong></p>
+                    <ul id="modalErrors"></ul>
+                    <p><strong>Комментарии:</strong></p>
+                    <p id="modalComments"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" onclick="closeEvalModal()">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

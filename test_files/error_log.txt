@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "buggy_script.py", line 82, in <module>
+    main()
+  File "buggy_script.py", line 70, in main
+    avg_age = calculate_average_age(active_users)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "buggy_script.py", line 34, in calculate_average_age
+    average = total_age / count
+              ~~~~~~~~~~^~~~~~~
+ZeroDivisionError: division by zero
